@@ -155,10 +155,15 @@ class Flvinfo2 {
 				
 				// Read tag body
 				$nextOffset = ftell($f) + $tagInfo['size'];
-				$body = fread($f, min($tagInfo['size'],16384));
+				if ($tagInfo['size'] > 0) {
+					$body = fread($f, min($tagInfo['size'],16384));
+				} else {
+					$body = '';
+				}
 				
 				// Seek
 				fseek($f, $nextOffset);
+				if ($body == '') continue;
 				
 				// Intepret body
 				switch ($tagInfo['type']) {

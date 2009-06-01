@@ -182,7 +182,7 @@ class AMF0Parser {
 				return $this->readArray();
 				break;
 			case self::TYPE_DATE: 	// Date
-				throw new Exception("Unhandled AMF type: Date (0B)");
+				return $this->readDate();
 				break;
 			case self::TYPE_LONGSTRING: 	// LongString
 				return $this->readLongString();
@@ -415,17 +415,17 @@ class AMF0Parser {
 
 		// Unpack it
 		$tmp = unpack("dnumber", $packed);
-		$epoch = $tmp['number'];
+		$epoch = $tmp['number']/1000;
 
 		// Get timezone
 		$tmp = unpack('nnumber', substr($this->data, $this->index, 2));
 		$this->index += 2;
 		$timezone = $tmp['number'];
-		if ($timezone & 32768 == 32768) {
+		if ($timezone > 32767) {
 			$timezone = $timezone-65536;
 		}
 
-		// make epoch GMT, and then convert to local time
+		// Make epoch GMT, and then convert to local time
 		$time = $epoch;
 		$time += $timezone*60;	// Timezone is in seconds
 		$time += date('Z',$time);
