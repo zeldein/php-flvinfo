@@ -6,11 +6,11 @@
  * mostly rewrote it.
  *
  * @author		Tommy Lacroix <lacroix.tommy@gmail.com>
- * @version 	1.2.20081220
- * @copyright   Copyright (c) 2006-2008 Tommy Lacroix
- * @license		LGPL
- * @package 	flvinfo2
- * @link 		http://www.tommylacroix.com/2008/07/04/a-php-tool-to-modify-an-flv-meta-and-cuepoints-on-the-fly/
+ * @version 	1.3.20090611 $Id$
+ * @copyright   Copyright (c) 2006-2009 Tommy Lacroix
+ * @license		LGPL version 3, http://www.gnu.org/licenses/lgpl.html
+ * @package 	php-flvinfo
+ * @link 		$HeadURL$
  */
 
 // ---
@@ -158,10 +158,8 @@ class AMF0Parser {
 				return $this->readBoolean();
 			case self::TYPE_STRING:		// String 0x02
 				return $this->readString();
-				break;
 			case self::TYPE_OBJECT:		// Object 0x03
 				return $this->readObject();
-				break;
 			case self::TYPE_MOVIECLIP:		// MovieClip
 				throw new Exception("Unhandled AMF type: MovieClip (04)");
 				break;
@@ -174,28 +172,22 @@ class AMF0Parser {
 				break;
 			case self::TYPE_MIXEDARRAY : 	// Mixed array 0x08
 				return $this->readMixedArray();
-				break;
 			case self::TYPE_OBJECT_TERM: 	// ObjectTerm
 				throw new Exception("Unhandled AMF type: ObjectTerm (09) -- should only happen in the getObject function");
 				break;
 			case self::TYPE_ARRAY:	// Array 0x0a
 				return $this->readArray();
-				break;
 			case self::TYPE_DATE: 	// Date
 				return $this->readDate();
-				break;
 			case self::TYPE_LONGSTRING: 	// LongString
 				return $this->readLongString();
-				break;
 			case TYPE_RECORDSET: 	// Recordset
 				throw new Exception("Unhandled AMF type: Unsupported (0E)");
 				break;
 			case self::TYPE_XML: 	// XML
 				return $this->readLongString();
-				break;
 			case self::TYPE_TYPED_OBJECT: 	// Typed Object
 				return $this->readTypedObject();
-				break;
 			case TYPE_AMF3: 	// AMF3
 				throw new Exception("Unhandled AMF type: AMF3 (11)");
 				break;
