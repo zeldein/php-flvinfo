@@ -1,16 +1,16 @@
 <?php 
 /**
- * FLVInfo2
+ * PHP-FLVInfo
  * 
  * Reads and writes FLV meta data from a Flash Video File.
  * 
  * @author		Tommy Lacroix <lacroix.tommy@gmail.com>
- * @version 	1.2.20081220
- * @copyright   Copyright (c) 2006-2008 Tommy Lacroix
- * @license		LGPL
- * @package 	flvinfo2
+ * @version 	1.3.20090611
+ * @copyright   Copyright (c) 2006-2009 Tommy Lacroix
+ * @license		LGPL version 3, http://www.gnu.org/licenses/lgpl.html
+ * @package 	php-flvinfo
  * @uses 		AMF0Parser
- * @link 		http://www.tommylacroix.com/2008/07/04/a-php-tool-to-modify-an-flv-meta-and-cuepoints-on-the-fly/
+ * @link 		$HeadURL$
  */
 
 // ---
@@ -26,7 +26,7 @@ require_once 'amf0parser.php';
  * 
  * @author		Tommy Lacroix <lacroix.tommy@gmail.com>
  */
-class Flvinfo2 {
+class Flvinfo {
 	// {{{ Audio codec types
 	const FLV_AUDIO_CODEC_UNCOMPRESSED = 0x00;
 	const FLV_AUDIO_CODEC_ADPCM = 0x01;
@@ -50,7 +50,7 @@ class Flvinfo2 {
 	 * @access 	public
 	 * @return 	FLVInfo2
 	 */
-	public function FLVInfo2() {
+	public function __construct() {
 	} // Constructor
 	
 	/**
@@ -199,7 +199,7 @@ class Flvinfo2 {
 									}
 									
 									// Start code
-									$startCode = substr($bin,0,17);
+									//$startCode = substr($bin,0,17);
 									
 									// Size type
 									$size = bindec(substr($bin,30,3));
@@ -525,7 +525,7 @@ class Flvinfo2 {
 				switch ($tagInfo['type']) {
 					case 0x09: 	// Video tag
 						break;
-					case 0x08:		// Audio tag
+					case 0x08:	// Audio tag
 						break;
 					case 0x12:	// Meta tag
 						// Initialize parser
