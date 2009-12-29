@@ -4,12 +4,12 @@
  * 
  * Reads and writes FLV meta data from a Flash Video File.
  * 
- * @author		Tommy Lacroix <lacroix.tommy@gmail.com>
- * @version 	1.3.20090611
- * @copyright   Copyright (c) 2006-2009 Tommy Lacroix
- * @license		LGPL version 3, http://www.gnu.org/licenses/lgpl.html
+ * @author	Tommy Lacroix <lacroix.tommy@gmail.com>
+ * @version 	1.3.20091229
+ * @copyright   Copyright (c) 2006-2008 Tommy Lacroix
+ * @license	LGPL
  * @package 	php-flvinfo
- * @uses 		AMF0Parser
+ * @uses 	AMF0Parser
  * @link 		$HeadURL$
  */
 
@@ -22,11 +22,11 @@ require_once 'amf0parser.php';
 // ---
 
 /**
- * FLVInfo2 class
+ * FLVInfo class
  * 
  * @author		Tommy Lacroix <lacroix.tommy@gmail.com>
  */
-class Flvinfo {
+class flvinfo {
 	// {{{ Audio codec types
 	const FLV_AUDIO_CODEC_UNCOMPRESSED = 0x00;
 	const FLV_AUDIO_CODEC_ADPCM = 0x01;
@@ -97,9 +97,10 @@ class Flvinfo {
 	 * 
 	 * @param	string      $filename
 	 * @param   bool		$extended	Get extended information about the FLV file
+	 * @param   bool		$useMeta	Trust information contained in the meta
 	 * @return  stdClass
 	 */
-	public function getInfo($filename, $extended=false, $useMeta=true) {
+	public static function getInfo($filename, $extended=false, $useMeta=true) {
 		// Initialize info class where we'll collect preliminary data
 		$info = new stdClass();
 		
@@ -116,9 +117,18 @@ class Flvinfo {
 		
 		// Open file
 		$f = fopen($filename,'rb');
+		if (!$f) {
+			// We can't open the file
+			return false;
+		}
 
 		// Read header
 		$buf = fread($f, 9);
+		if (strlen($buf) < 9) {
+			// We can't read at least the header?
+			// The file is fubar
+			return false;
+		}
 		$header = unpack('C3signature/Cversion/Cflags/Noffset', $buf);
 		
 		// Check signature
@@ -136,11 +146,12 @@ class Flvinfo {
 			
 			// Read tags
 			fseek($f, $header['offset']);
-			//$prevTagSize = 0;
 			do {
 				// Read tag header and check length
 				$buf = fread($f, 15);
-				if (strlen($buf) < 15) break;
+				if (strlen($buf) < 15) {
+					break;
+				}
 				
 				// Interpret header
 				$tagInfo = unpack('Nprevsize/C1type/C3size/C4timestamp/C3stream', $buf);
@@ -148,22 +159,15 @@ class Flvinfo {
 				$tagInfo['stream'] = ($tagInfo['stream1'] << 16) + ($tagInfo['stream2'] << 8) + $tagInfo['stream3'];
 				$tagInfo['timestamp'] = ($tagInfo['timestamp1'] << 16) + ($tagInfo['timestamp2'] << 8) + $tagInfo['timestamp3'] + ($tagInfo['timestamp4'] << 24);
 				
-				// Validate previous offset
-				//if ($tagInfo['prevsize'] != $prevTagSize) {
-					// Do nothing
-				//}
-				
-				// Read tag body
+				// Skip empty tags
+				if ($tagInfo['size'] == 0) continue;
+
+				// Read tag body (or the first 16k if it's bigger than that)
 				$nextOffset = ftell($f) + $tagInfo['size'];
-				if ($tagInfo['size'] > 0) {
-					$body = fread($f, min($tagInfo['size'],16384));
-				} else {
-					$body = '';
-				}
+				$body = fread($f, min($tagInfo['size'],16384));
 				
 				// Seek
 				fseek($f, $nextOffset);
-				if ($body == '') continue;
 				
 				// Intepret body
 				switch ($tagInfo['type']) {
@@ -185,8 +189,7 @@ class Flvinfo {
 							switch ($bodyInfo['flags'] & 15) {
 								case self::FLV_VIDEO_CODEC_ON2_VP6:
 								case self::FLV_VIDEO_CODEC_ON2_VP6ALPHA:
-									// This probably isn't right
-									// in all cases (VP60, VP61, VP62)
+									// This probably isn't right in all cases (VP60, VP61, VP62)
 									// http://wiki.multimedia.cx/index.php?title=On2_VP6
 									$frameWidth = ord($body[5])*16;
 									$frameHeight = ord($body[6])*16;
@@ -199,7 +202,7 @@ class Flvinfo {
 									}
 									
 									// Start code
-									//$startCode = substr($bin,0,17);
+									$startCode = substr($bin,0,17);
 									
 									// Size type
 									$size = bindec(substr($bin,30,3));
@@ -267,7 +270,7 @@ class Flvinfo {
 						// Get frame type and store it
 						$aFrames[] = array('timestamp'=>$tagInfo['timestamp'], 'size'=>$tagInfo['size']);
 						break;
-					case 0x12:	// Meta tag
+					case 0x12:		// Meta tag
 						// Skip if already found
 						if (((isset($hasMeta)) && ($hasMeta == true)) || ($useMeta == false)) continue;
 						
@@ -288,9 +291,6 @@ class Flvinfo {
 				// Increase parsed tag count
 				$tagParsed++;
 			} while (
-			/*	(feof($f) == false) && 
-				(($gotVideo == false) || ($gotAudio == false) || ($gotMeta == false) && (count($vFrames) < 1000)) && 
-				($tagParsed <= $maxTags)*/
 				(!feof($f)) && (($maxTags === false) || ($maxTags < $tagParsed))
 			);
 		} 
@@ -472,6 +472,187 @@ class Flvinfo {
 		// Return the object
 		return $ret;
 	} // getInfo method
+	
+
+	/**
+	 * Get information about the FLV file
+	 * 
+ 	 * @author	Tommy Lacroix <lacroix.tommy@gmail.com>
+ 	 * @access 	public
+	 * @param	string		$filename
+	 * @param	bool		$trustMeta
+	 * @return  stdClass
+	 */
+	public static function getDimensions($filename, $trustMeta=true) {
+		// Open file
+		$f = fopen($filename,'rb');
+
+		// Read header
+		$buf = fread($f, 9);
+		$header = unpack('C3signature/Cversion/Cflags/Noffset', $buf);
+		
+		// Check signature
+		$signature = (($header['signature1'] == 70) && ($header['signature2'] == 76) && ($header['signature3'] == 86));
+		
+		// If signature is invalid, return false
+		if (!$signature) {
+			return false;
+		}
+		
+		// If file has no video stream, return false
+		if (($header['flags'] & 1) == 0) {
+			return false;
+		}
+			
+		// Read tags
+		$frameWidth = $frameHeight = false;
+		$tagParsed = 0;
+		fseek($f, $header['offset']);
+		do {
+			// Read tag header and check length
+			$buf = fread($f, 15);
+			if (strlen($buf) < 15) {
+				break;
+			}
+			
+			// Interpret header
+			$tagInfo = unpack('Nprevsize/C1type/C3size/C4timestamp/C3stream', $buf);
+			$tagInfo['size'] = ($tagInfo['size1'] << 16) + ($tagInfo['size2'] << 8) + ($tagInfo['size3']);
+			$tagInfo['stream'] = ($tagInfo['stream1'] << 16) + ($tagInfo['stream2'] << 8) + $tagInfo['stream3'];
+			$tagInfo['timestamp'] = ($tagInfo['timestamp1'] << 16) + ($tagInfo['timestamp2'] << 8) + $tagInfo['timestamp3'] + ($tagInfo['timestamp4'] << 24);
+
+			// Skip empty tags
+			if ($tagInfo['size'] == 0) continue;
+
+			// Read tag body (or the first 16k if it's bigger than that)
+			$nextOffset = ftell($f) + $tagInfo['size'];
+			$body = fread($f, min($tagInfo['size'],16384));
+			
+			// Seek
+			fseek($f, $nextOffset);
+			
+			// Intepret body
+			switch ($tagInfo['type']) {
+				case 0x09: 	// Video tag
+					// Unpack flags
+					$bodyInfo = unpack('Cflags', $body);
+					
+					// Get codec
+					$codec = $bodyInfo['flags'] & 15;
+					
+					// Get frame type and store it
+					$frameType = ($bodyInfo['flags'] >> 4) & 15;
+
+					// Width is only valid in key frames (type 0x01)
+					if ($frameType == 0x01) {
+						switch ($bodyInfo['flags'] & 15) {
+							case self::FLV_VIDEO_CODEC_ON2_VP6:
+							case self::FLV_VIDEO_CODEC_ON2_VP6ALPHA:
+								// This probably isn't right in all cases (VP60, VP61, VP62)
+								// http://wiki.multimedia.cx/index.php?title=On2_VP6
+								$frameWidth = ord($body[5])*16-ord($body[7]);
+								$frameHeight = ord($body[6])*16-ord($body[8]);
+								
+								/*for ($x=0;$x<128;$x++) {
+									print $x.'='.ord($body[$x]).'<br>';
+								}
+								die();*/
+								
+								break;
+							case self::FLV_VIDEO_CODEC_SORENSON_H263:
+								$bin = '';
+								for ($i=0;$i<16;$i++) {
+									$sbin = decbin(ord($body[$i+1]));
+									$bin .= str_pad($sbin, 8, '0', STR_PAD_LEFT);
+								}
+								
+								// Start code
+								$startCode = substr($bin,0,17);
+								
+								// Size type
+								$size = bindec(substr($bin,30,3));
+								
+								// Get width/height
+								switch ($size) {
+									case 0:		// Custom, 8 bit
+										$frameWidth = bindec(substr($bin,33,8));
+										$frameHeight = bindec(substr($bin,41,8));
+										break;
+									case 1:		// Custom, 16 bit
+										$frameWidth = bindec(substr($bin,33,16));
+										$frameHeight = bindec(substr($bin,49,16));
+										break;
+									case 2:
+										$frameWidth = 352;
+										$frameHeight = 288;
+										break;
+									case 3:
+										$frameWidth = 176;
+										$frameHeight = 144;
+										break;										
+									case 4:
+										$frameWidth = 128;
+										$frameHeight = 96;
+										break;
+									case 5:
+										$frameWidth = 320;
+										$frameHeight = 240;
+										break;
+									case 6:
+										$frameWidth = 160;
+										$frameHeight = 120;
+										break;
+								}
+								break;
+						}
+					}
+					break;
+				case 0x12:	// Meta tag
+					if (!$trustMeta) break;
+				
+					// Mark meta as found
+					$hasMeta = true;
+					
+					// Initialize parser
+					$parser = new AMF0Parser();
+					
+					// Parse data
+					$meta = $parser->readAllPackets($body);
+					
+					// Try to get width/height
+					if ((isset($meta['1']['width'])) && (isset($meta['1']['height']))) {
+						$frameWidth = $meta['1']['width'];
+						$frameHeight = $meta['1']['height'];
+					}
+					break;
+			}
+			
+			// Increase parsed tag count
+			$tagParsed++;
+		} while (
+			($frameWidth === false) && 
+			($frameHeight === false) && 
+			(!feof($f)) && 
+			($tagParsed < 1000)
+		);
+		
+		// Close file
+		fclose($f);
+		
+		// Nothing detected, quit
+		if (($frameWidth === false) || ($frameHeight === false)) {
+			return false;
+		}
+		
+		// Return final object
+		$ret = new stdClass();
+		$ret->width = $frameWidth;
+		$ret->height = $frameHeight;
+		
+		// Return the object
+		return $ret;
+	} // getDimension method
+	
 
 	/**
 	 * Get a files meta data and cuepoints
@@ -481,7 +662,7 @@ class Flvinfo {
 	 * @param	string       $filename
 	 * @return	array(metas=>array(...),cuepoints=>array(...))
 	 */
-	public function getMeta($filename) {
+	public static function getMeta($filename) {
 		// Open file
 		$f = fopen($filename,'rb');
 		
@@ -525,7 +706,7 @@ class Flvinfo {
 				switch ($tagInfo['type']) {
 					case 0x09: 	// Video tag
 						break;
-					case 0x08:	// Audio tag
+					case 0x08:		// Audio tag
 						break;
 					case 0x12:	// Meta tag
 						// Initialize parser
@@ -566,13 +747,17 @@ class Flvinfo {
 	 * @param 	string		$out	Output file (must be different!)
 	 * @param 	string[]	$meta	Meta data (ie. array('width'=>320,'height'=>240,...), optional
 	 * @param 	array		$cuepoints	Cuepoints (ie. array(array('name'=>'cue1','time'=>'4.4',type=>'event'),...), optional
+	 * @return 	bool
 	 */
-	public function rewriteMeta($in, $out, $meta = false, $cuepoints = false) {
+	public static function rewriteMeta($in, $out, $meta = false, $cuepoints = false) {
 		// No tag found yet
 		$tagParsed = 0;
 		
 		// Open input file
 		$f = fopen($in,'rb');
+		if (!$f) {
+			return false;
+		}
 		
 		// Read header
 		$buf = fread($f, 9);
@@ -687,5 +872,6 @@ class Flvinfo {
 		// Close file
 		fclose($f);
 		fclose($o);
+		return true;
 	} // rewriteMeta method
 } // FLVInfo2 class
